@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 
 # --- Constants ---
-BASE_URL = "http://127.0.0.1:5001/{}"  # Pointing to Flask API (Ensure Flask app is running on port 5001)
+BASE_URL = "http://127.0.0.1:5001/{}"  # Pointing to Flask API (Flask app is running on port 5001)
 DATA_FOLDER = "data"
 
 # --- Helper Functions ---
