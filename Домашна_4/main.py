@@ -1,16 +1,15 @@
-# Refactored code with the implementation of the Strategy pattern used in lectures
-
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import os
 import pandas as pd
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup as BS
 from concurrent.futures import ThreadPoolExecutor
 import time
-import matplotlib.pyplot as plt
+
+# Refactored code with the implementation of the Strategy pattern used in lectures
 
 # --- Constants ---
 BASE_URL = "https://www.mse.mk/mk/stats/symbolhistory/{}"
@@ -80,12 +79,8 @@ class DataManager:
     def execute(self, *args, **kwargs):
         return self.strategy.fetch_data(*args, **kwargs)
 
-# --- GUI Components ---
-def start_scraping_thread(log_area):
-    thread = threading.Thread(target=start_scraping, args=(log_area,))
-    thread.start()
-
-def start_scraping(log_area):
+# --- Scraping and Saving Functions ---
+def fetch_issuer_data(log_area):
     log_message(log_area, "Starting scraping...")
     start_time = time.time()
     ensure_folder_exists(DATA_FOLDER)
@@ -99,22 +94,27 @@ def start_scraping(log_area):
         log_message(log_area, "No issuers found.")
         return
 
-    # Fetch data for each issuer
+    # Prepare session and strategy for annual data
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
-
     annual_strategy = AnnualDataStrategy(session)
     manager.set_strategy(annual_strategy)
 
-    for issuer in issuers:
-        log_message(log_area, f"Fetching data for {issuer}...")
-        for year in range(2014, datetime.now().year + 1):
-            data = manager.execute(issuer, year)
-            if data:
-                save_data(issuer, data)
+    # Using ThreadPoolExecutor for concurrent data fetching
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_issuer = {executor.submit(fetch_data_for_issuer, issuer, manager, log_area): issuer for issuer in issuers}
+        for future in future_to_issuer:
+            future.result()  # Wait for all tasks to complete
 
     elapsed_time = (time.time() - start_time) / 60
     log_message(log_area, f"Scraping completed in {elapsed_time:.2f} minutes.")
+
+def fetch_data_for_issuer(issuer, manager, log_area):
+    log_message(log_area, f"Fetching data for {issuer}...")
+    for year in range(2014, datetime.now().year + 1):
+        data = manager.execute(issuer, year)
+        if data:
+            save_data(issuer, data)
 
 def save_data(issuer, data):
     file_path = os.path.join(DATA_FOLDER, f"{issuer}.csv")
@@ -123,6 +123,11 @@ def save_data(issuer, data):
         df_existing = pd.read_csv(file_path)
         df = pd.concat([df_existing, df], ignore_index=True)
     df.to_csv(file_path, index=False, encoding="utf-8-sig")
+
+# --- GUI Components ---
+def start_scraping_thread(log_area):
+    thread = threading.Thread(target=fetch_issuer_data, args=(log_area,))
+    thread.start()
 
 def create_gui():
     root = tk.Tk()
