@@ -9,10 +9,8 @@ from bs4 import BeautifulSoup as BS
 from concurrent.futures import ThreadPoolExecutor
 import time
 
-# Refactored code with the implementation of the Strategy pattern used in lectures
-
 # --- Constants ---
-BASE_URL = "https://www.mse.mk/mk/stats/symbolhistory/{}"
+BASE_URL = "http://127.0.0.1:5001/{}"  # Pointing to Flask API (Ensure Flask app is running on port 5001)
 DATA_FOLDER = "data"
 
 # --- Helper Functions ---
@@ -30,18 +28,24 @@ class DataFetchStrategy:
         raise NotImplementedError("Fetch method must be implemented.")
 
 class IssuerListStrategy(DataFetchStrategy):
-    def fetch_data(self):
+    def fetch_data(self, log_area):
         try:
-            response = requests.get(BASE_URL.format("ADIN"), headers={"User-Agent": "Mozilla/5.0"})
+            response = requests.get(BASE_URL.format("issuers"))
             if response.status_code != 200:
+                log_message(log_area, f"Error fetching issuers: {response.status_code}")
                 return []
 
-            soup = BS(response.content, 'html.parser')
-            option_elements = soup.select("#Code > option")
+            issuers = response.json()  # The list of issuers will be returned in JSON format
+            log_message(log_area, f"Fetched issuers: {issuers}")
 
-            return [opt.text.strip() for opt in option_elements if not any(char.isdigit() for char in opt.text)]
+            # Check if the list is empty or not
+            if not issuers:
+                log_message(log_area, "No issuers found.")
+            return issuers
         except Exception as e:
+            log_message(log_area, f"Error fetching issuers: {str(e)}")
             return []
+
 
 class AnnualDataStrategy(DataFetchStrategy):
     def __init__(self, session):
@@ -53,7 +57,7 @@ class AnnualDataStrategy(DataFetchStrategy):
             'FromDate': f"01.01.{year}",
             'ToDate': f"31.12.{year}"
         }
-        response = self.session.post(BASE_URL.format(issuer_code), data=payload)
+        response = self.session.post(BASE_URL.format(f"symbolhistory/{issuer_code}"), data=payload)
         if response.status_code != 200:
             return []
 
@@ -85,10 +89,10 @@ def fetch_issuer_data(log_area):
     start_time = time.time()
     ensure_folder_exists(DATA_FOLDER)
 
-    # Fetch issuer list
+    # Fetch issuer list via API
     issuer_strategy = IssuerListStrategy()
     manager = DataManager(issuer_strategy)
-    issuers = manager.execute()
+    issuers = manager.execute(log_area)
 
     if not issuers:
         log_message(log_area, "No issuers found.")
