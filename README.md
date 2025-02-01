@@ -1,4 +1,8 @@
 # Macedonian Stock Exchange Data Analysis and Prediction
+************************************** <br>
+We are working on changing the user interface to a web application, in order to get the most out of the points of the third task. <br>
+************************************** <br>
+
 This project focuses on analyzing historical data from the Macedonian Stock Exchange and predicting stock trends.
 Features:
 
